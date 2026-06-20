@@ -63,9 +63,12 @@ def load_data():
 
 def save_data(data):
     try:
-        sha     = data.pop("_sha", None)
+        # Always fetch latest SHA before saving to avoid 409 conflicts
+        url = f"https://api.github.com/repos/{gh_repo()}/contents/{DATA_FILE}"
+        r_get = requests.get(url, headers=gh_headers(), timeout=10)
+        sha = r_get.json()["sha"] if r_get.status_code == 200 else data.pop("_sha", None)
+        data.pop("_sha", None)  # remove sha from data before saving
         encoded = base64.b64encode(json.dumps(data, indent=2).encode()).decode()
-        url     = f"https://api.github.com/repos/{gh_repo()}/contents/{DATA_FILE}"
         payload = {"message":"Update Lot Builder data","content":encoded}
         if sha: payload["sha"] = sha
         r = requests.put(url, headers=gh_headers(), json=payload, timeout=10)
