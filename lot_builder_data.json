@@ -1,4 +1,19 @@
 {
-  "trades": [],
+  "trades": [
+    {
+      "id": 1,
+      "symbol": "ONGC",
+      "tranches": [
+        {
+          "tranche": "T1",
+          "qty": 819,
+          "price": 244.5,
+          "date": "2026-06-19",
+          "notes": ""
+        }
+      ],
+      "target_pct": 8.0
+    }
+  ],
   "sold": []
 }
