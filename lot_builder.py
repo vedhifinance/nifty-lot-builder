@@ -322,7 +322,9 @@ elif nav == "📂 Open Positions":
                 db["trades"] = trades
                 if save_data(db):
                     st.success(f"✓ {t_tranche} added: {int(t_qty)} {t_sym} @ ₹{t_price:.2f}")
-                    st.session_state["lb_reload"]=True; st.rerun()
+                    st.session_state["lb_reload"]=True
+                    st.session_state["lb_data"] = load_data()
+                    st.rerun()
 
     st.divider()
 
