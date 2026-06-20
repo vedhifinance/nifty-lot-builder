@@ -221,6 +221,13 @@ if nav == "📡 Signal Scanner":
                 })
         prog.empty()
 
+        failed = [s for s in stocks_to_scan if s not in [r["Stock"] for r in results] and s not in [r["Stock"] for r in results]]
+        # Recalculate failed stocks
+        scanned_syms = [r["Stock"] for r in results]
+        failed_syms  = [s for s in stocks_to_scan if s not in scanned_syms]
+        if failed_syms:
+            st.warning(f"⚠ Could not fetch data for: {', '.join(failed_syms)} — Yahoo Finance temporarily unavailable for these stocks. Try again later.")
+
         if not results:
             st.info("No entry signals found. Try 'Show all' to see all stocks.")
         else:
