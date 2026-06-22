@@ -92,6 +92,28 @@ def calc_rsi(close, period=14):
     val   = float((100-(100/(1+ag/al.replace(0,1e-10)))).iloc[-1])
     return round(val,1) if 1<=val<=99 else None
 
+def detect_candle(o, h, l, c, prev_o, prev_c):
+    body       = abs(c - o)
+    full_range = h - l if h != l else 0.0001
+    lower_wick = min(o,c) - l
+    upper_wick = h - max(o,c)
+    # Hammer: small body at top, long lower wick, green preferred
+    is_hammer = (lower_wick >= 2*body and upper_wick <= 0.3*body and
+                 body >= 0.1*full_range and c > o)
+    # Bullish Engulfing: today green engulfs previous red
+    is_engulfing = (prev_c < prev_o and c > o and c > prev_o and o < prev_c)
+    # Strong Green Close: closes in top 25%, body > 60% of range
+    is_strong_green = (c > o and body >= 0.6*full_range and (c-l) >= 0.75*full_range)
+    # Doji: very small body — indecision
+    is_doji = body <= 0.05*full_range
+
+    if is_hammer:       return "🔨 Hammer", "Strong"
+    if is_engulfing:    return "🕯 Bullish Engulfing", "Strong"
+    if is_strong_green: return "💚 Strong Green", "Good"
+    if is_doji:         return "➖ Doji", "Wait"
+    if c > o:           return "🟢 Green candle", "Neutral"
+    return "🔴 Red candle", "Avoid"
+
 @st.cache_data(ttl=1800)
 def fetch_stock_data(symbol):
     try:
@@ -133,10 +155,18 @@ def fetch_stock_data(symbol):
         else:
             signal="⚪ Monitoring — No entry signal yet"; tranche=None
 
+        # Candle detection
+        o_t    = float(df["Open"].squeeze().dropna().iloc[-1])
+        h_t    = float(df["High"].squeeze().dropna().iloc[-1])
+        l_t    = float(df["Low"].squeeze().dropna().iloc[-1])
+        prev_o = float(df["Open"].squeeze().dropna().iloc[-2])
+        candle, candle_strength = detect_candle(o_t, h_t, l_t, ltp, prev_o, prev)
+
         return {"ltp":ltp,"chg":ltp-prev,"chgp":(ltp-prev)/prev*100,
                 "ema20":round(e20,2),"ema50":round(e50,2),"ema200":round(e200,2),
                 "rsi":rsi,"vol_ratio":vr,"above_200":above_200,
-                "pct_above_200":pct_above,"signal":signal,"tranche":tranche}
+                "pct_above_200":pct_above,"signal":signal,"tranche":tranche,
+                "candle":candle,"candle_strength":candle_strength}
     except: return None
 
 @st.cache_data(ttl=300)
@@ -219,6 +249,8 @@ if nav == "📡 Signal Scanner":
                     "EMA 50":d["ema50"],"EMA 200":d["ema200"],
                     "% above 200":d["pct_above_200"],
                     "Vol Ratio":d["vol_ratio"],
+                    "Candle":d.get("candle","—"),
+                    "Strength":d.get("candle_strength","—"),
                     "Signal":d["signal"],
                     "_tranche":d["tranche"],
                 })
@@ -235,7 +267,7 @@ if nav == "📡 Signal Scanner":
             st.info("No entry signals found. Try 'Show all' to see all stocks.")
         else:
             st.success(f"Found {len(results)} stocks with signals")
-            cols = ["Stock","LTP ₹","Chg%","RSI","EMA 20","EMA 50","EMA 200","% above 200","Vol Ratio","Signal"]
+            cols = ["Stock","LTP ₹","Chg%","RSI","EMA 20","EMA 50","EMA 200","% above 200","Vol Ratio","Candle","Strength","Signal"]
 
             def sig_style(val):
                 if "T1 Entry" in str(val):   return "background:#D6F5E3;color:#1A5C35;font-weight:600"
@@ -254,6 +286,11 @@ if nav == "📡 Signal Scanner":
                     v = r[col]
                     s = "padding:9px 12px;font-size:13px;border-right:0.5px solid #E0DED8;border-bottom:0.5px solid #E0DED8;white-space:nowrap;"
                     if col=="Stock": s+="background:#1A1A18;color:white;font-weight:600;"
+                    elif col=="Strength":
+                        if v=="Strong": s+="background:#D6F5E3;color:#1A5C35;font-weight:600;"
+                        elif v=="Good": s+="background:#EAF3DE;color:#2D6A2D;font-weight:500;"
+                        elif v=="Wait": s+="background:#FFF9DB;color:#7A5C00;font-weight:500;"
+                        elif v=="Avoid": s+="background:#FDDCDC;color:#7A1A1A;font-weight:500;"
                     elif col=="Chg%": s+=f"color:{'#1D9E75' if v>=0 else '#E24B4A'};font-weight:500;"
                     elif col=="Signal": s+=sig_style(v)
                     elif col=="RSI" and v is not None:
